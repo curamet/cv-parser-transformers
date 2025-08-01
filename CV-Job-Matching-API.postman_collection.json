@@ -1,0 +1,572 @@
+{
+	"info": {
+		"_postman_id": "cv-job-matching-api",
+		"name": "CV-Job Matching API",
+		"description": "Comprehensive API collection for testing the Semantic CV-Job Matching System. Includes all endpoints with sample data and proper request/response examples.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health & System",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Check system health and get basic system information"
+					},
+					"response": []
+				},
+				{
+					"name": "Get System Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"stats"
+							]
+						},
+						"description": "Get detailed system statistics and database information"
+					},
+					"response": []
+				},
+				{
+					"name": "API Documentation",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/docs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"docs"
+							]
+						},
+						"description": "Access the interactive API documentation"
+					},
+					"response": []
+				}
+			],
+			"description": "Basic system health and information endpoints"
+		},
+		{
+			"name": "Document Processing",
+			"item": [
+				{
+					"name": "Process CVs",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cv_files\": [\n    \"sample_cv_1.txt\",\n    \"sample_cv_2.txt\"\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/process-cvs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"process-cvs"
+							]
+						},
+						"description": "Process multiple CV files and store them in the vector database"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Jobs",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"job_files\": [\n    \"sample_job_1.txt\",\n    \"sample_job_2.txt\"\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/process-jobs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"process-jobs"
+							]
+						},
+						"description": "Process multiple job description files and store them in the vector database"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Single CV",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "cv_id",
+									"value": "cv_123",
+									"type": "text"
+								},
+								{
+									"key": "cv_file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/process-single-cv",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"process-single-cv"
+							]
+						},
+						"description": "Process a single CV file uploaded via form and store it in the vector database with custom ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Opportunity",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"opportunity_id\": \"job_456\",\n  \"opportunity_text\": \"We are looking for a Python backend developer with 3+ years of experience in Django or Flask frameworks. The ideal candidate should have experience with PostgreSQL databases and AWS cloud platforms. Knowledge of Docker and Kubernetes is a plus.\",\n  \"opportunity_title\": \"Senior Python Backend Developer\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/process-opportunity",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"process-opportunity"
+							]
+						},
+						"description": "Process opportunity text directly from request and store it in the vector database with custom ID"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for processing CV and job documents"
+		},
+		{
+			"name": "Matching",
+			"item": [
+				{
+					"name": "Match CV with ALL Opportunities",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cv_id\": \"{{cv_id}}\",\n  \"n_results\": 10\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/match-cv-with-all-opportunities",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"match-cv-with-all-opportunities"
+							]
+						},
+						"description": "Match a CV against ALL opportunities in the database"
+					},
+					"response": []
+				},
+				{
+					"name": "Match Opportunity with ALL CVs",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"opportunity_id\": \"{{job_id}}\",\n  \"n_results\": 10\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/match-opportunity-with-all-cvs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"match-opportunity-with-all-cvs"
+							]
+						},
+						"description": "Match an opportunity against ALL CVs in the database"
+					},
+					"response": []
+				},
+				{
+					"name": "Match Single CV with Single Opportunity",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cv_id\": \"{{cv_id}}\",\n  \"opportunity_id\": \"{{job_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/match-single-cv-with-opportunity",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"match-single-cv-with-opportunity"
+							]
+						},
+						"description": "Match a single CV with a single opportunity using their stored IDs"
+					},
+					"response": []
+				},
+				{
+					"name": "Match Multiple CVs with Opportunities",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"cv_ids\": [\n    \"{{cv_id_1}}\",\n    \"{{cv_id_2}}\",\n    \"{{cv_id_3}}\"\n  ],\n  \"opportunity_ids\": [\n    \"{{job_id_1}}\",\n    \"{{job_id_2}}\",\n    \"{{job_id_3}}\"\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/match-multiple-cvs-with-opportunities",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"match-multiple-cvs-with-opportunities"
+							]
+						},
+						"description": "Match multiple CVs with multiple opportunities"
+					},
+					"response": []
+				}
+			],
+			"description": "Essential matching endpoints for CV-Job matching"
+		},
+		{
+			"name": "Search",
+			"item": [
+				{
+					"name": "Semantic Search (Full Results)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"Python backend developer with AWS experience\",\n  \"doc_type\": \"cv\",\n  \"n_results\": 5\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/search",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search"
+							]
+						},
+						"description": "Search for similar documents using semantic similarity (returns full document details)"
+					},
+					"response": []
+				},
+				{
+					"name": "Search CVs (IDs Only)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/cvs/python%20developer?n_results=5",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"cvs",
+								"python developer"
+							],
+							"query": [
+								{
+									"key": "n_results",
+									"value": "5"
+								}
+							]
+						},
+						"description": "Search for CVs matching the query and return only CV IDs"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Opportunities (IDs Only)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/opportunities/python%20developer?n_results=5",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"opportunities",
+								"python developer"
+							],
+							"query": [
+								{
+									"key": "n_results",
+									"value": "5"
+								}
+							]
+						},
+						"description": "Search for job opportunities matching the query and return only opportunity IDs"
+					},
+					"response": []
+				},
+				{
+					"name": "Search CVs - Data Scientist",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/cvs/data%20scientist?n_results=3",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"cvs",
+								"data scientist"
+							],
+							"query": [
+								{
+									"key": "n_results",
+									"value": "3"
+								}
+							]
+						},
+						"description": "Search for CVs matching 'data scientist' and return only CV IDs"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Opportunities - Frontend Developer",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/search/opportunities/frontend%20developer?n_results=3",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"search",
+								"opportunities",
+								"frontend developer"
+							],
+							"query": [
+								{
+									"key": "n_results",
+									"value": "3"
+								}
+							]
+						},
+						"description": "Search for job opportunities matching 'frontend developer' and return only opportunity IDs"
+					},
+					"response": []
+				}
+			],
+			"description": "Semantic search endpoints for finding similar documents (full results and ID-only results)"
+		},
+		{
+			"name": "Analysis",
+			"item": [
+				{
+					"name": "Analyze CV with LLM",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/llm/analyse-cv/{{cv_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"llm",
+								"analyse-cv",
+								"{{cv_id}}"
+							]
+						},
+						"description": "Analyze a CV using Large Language Model for detailed insights"
+					},
+					"response": []
+				}
+			],
+			"description": "LLM-based analysis endpoints"
+		},
+		{
+			"name": "Management",
+			"item": [
+				{
+					"name": "Delete Document",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/documents/{{doc_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"documents",
+								"{{doc_id}}"
+							]
+						},
+						"description": "Delete a specific document from the vector database"
+					},
+					"response": []
+				},
+				{
+					"name": "Clear Database",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/clear-database",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"clear-database"
+							]
+						},
+						"description": "Clear all data from the vector database (use with caution!)"
+					},
+					"response": []
+				}
+			],
+			"description": "Database management endpoints"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "cv_id",
+			"value": "9fa1c5b2b70241bcafce5fa5a750404c",
+			"type": "string"
+		},
+		{
+			"key": "cv_id_1",
+			"value": "9fa1c5b2b70241bcafce5fa5a750404c",
+			"type": "string"
+		},
+		{
+			"key": "cv_id_2",
+			"value": "dbc48722f4c289feab8c592bf06f2c80",
+			"type": "string"
+		},
+		{
+			"key": "job_id",
+			"value": "9d33ca29883781df31f4ace377566cfe",
+			"type": "string"
+		},
+		{
+			"key": "job_id_1",
+			"value": "9d33ca29883781df31f4ace377566cfe",
+			"type": "string"
+		},
+		{
+			"key": "job_id_2",
+			"value": "2aa8e6d640c1eedcdf2f069616cac821",
+			"type": "string"
+		},
+		{
+			"key": "doc_id",
+			"value": "9fa1c5b2b70241bcafce5fa5a750404c",
+			"type": "string"
+		}
+	]
+} 
