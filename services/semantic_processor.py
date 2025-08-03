@@ -47,8 +47,12 @@ class SemanticProcessor:
             matches = []
             for cv_id in cv_ids:
                 try:
+                    # Get CV embeddings and sections
+                    cv_embeddings = vector_db.get_document(cv_id)
+                    cv_sections = vector_db.get_document_sections(cv_id)
+                    
                     match_result = self._match_single_cv_with_opportunity(
-                        cv_id, opportunity_id, opportunity_embeddings, opportunity_sections
+                        cv_id, opportunity_id, cv_embeddings, cv_sections
                     )
                     if match_result:
                         matches.append(match_result)
@@ -274,79 +278,117 @@ class SemanticProcessor:
             Match result with scores and explanations
         """
         try:
+            logger.info(f"Starting single CV-opportunity matching: CV={cv_id}, Opportunity={opportunity_id}")
+            
             # Get opportunity embeddings
             opportunity_embeddings = vector_db.get_document(opportunity_id)
             if opportunity_embeddings is None:
+                logger.error(f"Opportunity embeddings not found for {opportunity_id}")
                 return None
             
             # Get opportunity sections
             opportunity_sections = vector_db.get_document_sections(opportunity_id)
+            logger.info(f"Opportunity sections: {opportunity_sections}")
             
             # Get document names (use IDs as fallback)
             cv_name = f"CV_{cv_id}"
             opportunity_name = f"Opportunity_{opportunity_id}"
             
             # Get document texts for section analysis
-            from database.vector_db import vector_db
             cv_text = vector_db.get_raw_text(cv_id)
             opportunity_text = vector_db.get_raw_text(opportunity_id)
             
             if not cv_text or not opportunity_text:
+                logger.error(f"Document text not found: CV={bool(cv_text)}, Opportunity={bool(opportunity_text)}")
                 return None
+            
+            logger.info(f"Document texts retrieved: CV length={len(cv_text)}, Opportunity length={len(opportunity_text)}")
             
             # Extract sections from text
             from utils.text_processing import text_processor
             cv_extracted_sections = text_processor.extract_sections(cv_text)
             opportunity_extracted_sections = text_processor.extract_sections(opportunity_text)
             
+            logger.info(f"Extracted sections - CV: {list(cv_extracted_sections.keys())}, Opportunity: {list(opportunity_extracted_sections.keys())}")
+            
             # Calculate section-wise similarities
             section_scores = {}
             section_explanations = {}
             
             # Skills matching
-            if "skills" in cv_extracted_sections and "skills" in opportunity_extracted_sections:
+            cv_skills_text = cv_extracted_sections.get("skills", cv_text)
+            opportunity_skills_text = opportunity_extracted_sections.get("skills", opportunity_text)
+            if cv_skills_text and opportunity_skills_text:
+                logger.info("Processing skills matching")
                 skills_score, skills_explanation = self._calculate_skills_similarity(
-                    cv_extracted_sections["skills"], opportunity_extracted_sections["skills"]
+                    cv_skills_text, opportunity_skills_text
                 )
                 section_scores["skills"] = skills_score
                 section_explanations["skills"] = skills_explanation
+                logger.info(f"Skills score: {skills_score}")
             
             # Experience matching
-            if "experience" in cv_extracted_sections and "experience" in opportunity_extracted_sections:
+            cv_experience_text = cv_extracted_sections.get("experience", cv_text)
+            opportunity_experience_text = opportunity_extracted_sections.get("experience", opportunity_text)
+            if cv_experience_text and opportunity_experience_text:
+                logger.info("Processing experience matching")
                 experience_score, experience_explanation = self._calculate_experience_similarity(
-                    cv_extracted_sections["experience"], opportunity_extracted_sections["experience"]
+                    cv_experience_text, opportunity_experience_text
                 )
                 section_scores["experience"] = experience_score
                 section_explanations["experience"] = experience_explanation
+                logger.info(f"Experience score: {experience_score}")
             
             # Education matching
-            if "education" in cv_extracted_sections and "education" in opportunity_extracted_sections:
+            cv_education_text = cv_extracted_sections.get("education", cv_text)
+            opportunity_education_text = opportunity_extracted_sections.get("education", opportunity_text)
+            if cv_education_text and opportunity_education_text:
+                logger.info("Processing education matching")
                 education_score, education_explanation = self._calculate_education_similarity(
-                    cv_extracted_sections["education"], opportunity_extracted_sections["education"]
+                    cv_education_text, opportunity_education_text
                 )
                 section_scores["education"] = education_score
                 section_explanations["education"] = education_explanation
+                logger.info(f"Education score: {education_score}")
             
             # Projects matching
-            if "projects" in cv_extracted_sections and "projects" in opportunity_extracted_sections:
+            cv_projects_text = cv_extracted_sections.get("projects", cv_text)
+            opportunity_projects_text = opportunity_extracted_sections.get("projects", opportunity_text)
+            if cv_projects_text and opportunity_projects_text:
+                logger.info("Processing projects matching")
                 projects_score, projects_explanation = self._calculate_projects_similarity(
-                    cv_extracted_sections["projects"], opportunity_extracted_sections["projects"]
+                    cv_projects_text, opportunity_projects_text
                 )
                 section_scores["projects"] = projects_score
                 section_explanations["projects"] = projects_explanation
+                logger.info(f"Projects score: {projects_score}")
+            
+            # If no sections matched, use overall document similarity
+            if not section_scores:
+                logger.info("No sections matched, using overall document similarity")
+                overall_similarity_score, overall_explanation = self._calculate_overall_similarity(
+                    cv_text, opportunity_text
+                )
+                section_scores["overall"] = overall_similarity_score
+                section_explanations["overall"] = overall_explanation
+                logger.info(f"Overall similarity score: {overall_similarity_score}")
+            
+            logger.info(f"Final section scores: {section_scores}")
             
             # Calculate overall score
             overall_score = self._calculate_weighted_score(section_scores)
+            logger.info(f"Overall weighted score: {overall_score}")
             
             # Determine match quality
             match_quality = self._determine_match_quality(overall_score)
+            logger.info(f"Match quality: {match_quality}")
             
             # Generate overall explanation
             overall_explanation = self._generate_overall_explanation(
                 section_scores, section_explanations, overall_score, match_quality
             )
             
-            return {
+            result = {
                 "cv_id": cv_id,
                 "opportunity_id": opportunity_id,
                 "cv_name": cv_name,
@@ -359,9 +401,41 @@ class SemanticProcessor:
                 "matched_sections": list(section_scores.keys())
             }
             
+            logger.info(f"Successfully completed single CV-opportunity matching")
+            return result
+            
         except Exception as e:
             logger.error(f"Error in single CV-opportunity matching: {str(e)}")
             return None
+    
+    def _calculate_overall_similarity(self, cv_text: str, job_text: str) -> Tuple[float, str]:
+        """Calculate overall similarity between CV and job using embeddings."""
+        try:
+            from services.nlp_processor import nlp_processor
+            from utils.text_processing import text_processor
+            
+            # Generate embeddings for both texts
+            cv_embedding = nlp_processor.generate_embeddings(cv_text)[0]
+            job_embedding = nlp_processor.generate_embeddings(job_text)[0]
+            
+            # Calculate cosine similarity
+            similarity = nlp_processor.calculate_similarity(cv_embedding, job_embedding)
+            
+            # Generate explanation based on similarity
+            if similarity >= 0.8:
+                explanation = "Very high overall similarity between documents"
+            elif similarity >= 0.6:
+                explanation = "Good overall similarity between documents"
+            elif similarity >= 0.4:
+                explanation = "Moderate overall similarity between documents"
+            else:
+                explanation = "Low overall similarity between documents"
+            
+            return similarity, explanation
+            
+        except Exception as e:
+            logger.error(f"Error calculating overall similarity: {str(e)}")
+            return 0.0, "Error calculating overall similarity"
     
     def _calculate_skills_similarity(self, cv_skills: str, job_skills: str) -> Tuple[float, str]:
         """Calculate skills similarity between CV and job."""

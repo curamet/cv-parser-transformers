@@ -131,7 +131,7 @@ class Settings:
     
     # Model configurations
     EMBEDDING_MODELS = {
-        "primary": "sentence-transformers/all-mpnet-base-v2"
+        "primary": "sentence-transformers/all-mpnet-base-v2"  # Original large model
     }
     
     # Default model to use

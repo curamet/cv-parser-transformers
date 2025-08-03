@@ -2,6 +2,8 @@ from typing import List, Dict, Optional, Any
 import numpy as np
 from loguru import logger
 from config.settings import settings
+from datetime import datetime
+import traceback
 
 class VectorDatabase:
     """High-level interface for vector database operations with engine selection."""
@@ -48,9 +50,27 @@ class VectorDatabase:
             List of stored document IDs
         """
         try:
-            return self.engine.store_vectors(documents)
+            logger.info(f"Starting to store {len(documents)} documents in vector database...")
+            
+            # Log document details
+            for i, doc in enumerate(documents):
+                doc_id = doc.get("doc_id", "unknown")
+                doc_type = doc.get("doc_type", "unknown")
+                has_embeddings = "embeddings" in doc and doc["embeddings"]
+                embedding_count = len(doc.get("embeddings", {}).get("sections", {})) + 1 if has_embeddings else 0
+                logger.info(f"Document {i+1}: ID={doc_id}, Type={doc_type}, Embeddings={embedding_count}")
+            
+            start_time = datetime.now()
+            stored_ids = self.engine.store_vectors(documents)
+            storage_time = (datetime.now() - start_time).total_seconds()
+            
+            logger.info(f"Vector storage completed in {storage_time:.2f}s")
+            logger.info(f"Successfully stored {len(stored_ids)} documents with IDs: {stored_ids}")
+            return stored_ids
         except Exception as e:
             logger.error(f"Error storing documents: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return []
     
     def search_similar(self, query_text: str, doc_type: str = None, 

@@ -29,16 +29,20 @@ class DocumentProcessor:
         logger.info(f"Starting {doc_type} processing pipeline for {len(files)} files")
         
         # Step 1: Parse documents
+        logger.info(f"Step 1: Parsing {doc_type} documents...")
         if doc_type == "cv":
             parsed_docs = document_parser.process_multiple_cvs(files)
         else:
             parsed_docs = document_parser.process_multiple_jobs(files)
             
+        logger.info(f"Parsing completed. Got {len(parsed_docs) if parsed_docs else 0} parsed documents")
+        
         if not parsed_docs:
             logger.error(f"No {doc_type}s were successfully parsed")
             return []
         
         # Step 2: Process each document
+        logger.info(f"Step 2: Processing {len(parsed_docs)} documents...")
         processed_docs = []
         for i, doc_data in enumerate(parsed_docs):
             try:
@@ -51,17 +55,26 @@ class DocumentProcessor:
                     doc_data["doc_id"] = custom_ids[i]
                     logger.info(f"Using custom ID: {custom_ids[i]}")
                 
+                logger.info(f"Processing document {i+1}/{len(parsed_docs)} with ID: {doc_data.get('doc_id', 'unknown')}")
                 processed_doc = self._process_single_document(doc_data, doc_type)
                 if processed_doc:
                     processed_docs.append(processed_doc)
+                    logger.info(f"Successfully processed document {i+1}")
+                else:
+                    logger.error(f"Failed to process document {i+1}")
             except Exception as e:
                 logger.error(f"Error processing {doc_type} {doc_data.get('doc_id', 'unknown')}: {str(e)}")
                 continue
         
+        logger.info(f"Document processing completed. Got {len(processed_docs)} processed documents")
+        
         # Step 3: Store vectors
         if processed_docs:
+            logger.info(f"Step 3: Storing {len(processed_docs)} documents in vector database...")
             stored_ids = vector_db.store_documents(processed_docs)
-            logger.info(f"Stored {len(stored_ids)} {doc_type} vectors in database")
+            logger.info(f"Vector storage completed. Stored {len(stored_ids)} {doc_type} vectors in database")
+        else:
+            logger.warning("No documents to store in vector database")
         
         logger.info(f"{doc_type.capitalize()} processing pipeline completed. Processed {len(processed_docs)} documents")
         return processed_docs
@@ -137,19 +150,38 @@ class DocumentProcessor:
             doc_id = doc_data["doc_id"]
             raw_text = doc_data["raw_text"]
             
+            logger.info(f"Starting processing for {doc_type} {doc_id} (text length: {len(raw_text)})")
+            
             # Step 1: Extract sections
+            logger.info(f"Step 1: Extracting sections for {doc_id}...")
+            start_time = datetime.now()
             sections = text_processor.extract_sections(raw_text)
+            section_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Sections extracted in {section_time:.2f}s. Found sections: {list(sections.keys())}")
             
             # Step 2: Extract semantic features
+            logger.info(f"Step 2: Extracting semantic features for {doc_id}...")
+            start_time = datetime.now()
             semantic_features = nlp_processor.extract_semantic_features(raw_text)
+            semantic_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Semantic features extracted in {semantic_time:.2f}s")
             
             # Step 3: Generate embeddings
+            logger.info(f"Step 3: Generating embeddings for {doc_id}...")
+            start_time = datetime.now()
             embeddings = self._generate_document_embeddings(raw_text, sections)
+            embedding_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Embeddings generated in {embedding_time:.2f}s. Generated {len(embeddings['sections'])} section embeddings")
             
             # Step 4: Analyze document content
+            logger.info(f"Step 4: Analyzing document content for {doc_id}...")
+            start_time = datetime.now()
             analysis = self._analyze_document_content(raw_text, sections, semantic_features, doc_type)
+            analysis_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Document analysis completed in {analysis_time:.2f}s")
             
             # Step 5: Create processed document data
+            logger.info(f"Step 5: Creating final processed document for {doc_id}...")
             processed_doc = {
                 **doc_data,
                 "processed_at": datetime.now().isoformat(),
@@ -159,11 +191,14 @@ class DocumentProcessor:
                 "analysis": analysis
             }
             
-            logger.info(f"Successfully processed {doc_type}: {doc_id}")
+            total_time = section_time + semantic_time + embedding_time + analysis_time
+            logger.info(f"Successfully processed {doc_type} {doc_id} in {total_time:.2f}s total")
             return processed_doc
             
         except Exception as e:
             logger.error(f"Error processing {doc_type} {doc_data.get('doc_id', 'unknown')}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
     def _generate_document_embeddings(self, raw_text: str, sections: Dict) -> Dict:
@@ -177,16 +212,35 @@ class DocumentProcessor:
         Returns:
             Dictionary containing embeddings
         """
+        logger.info(f"Starting embedding generation for document (text length: {len(raw_text)})")
+        
+        # Generate full document embedding
+        logger.info("Generating full document embedding...")
+        start_time = datetime.now()
+        full_doc_embedding = nlp_processor.generate_embeddings(raw_text)[0]
+        full_doc_time = (datetime.now() - start_time).total_seconds()
+        logger.info(f"Full document embedding generated in {full_doc_time:.2f}s")
+        
         embeddings = {
-            "full_document": nlp_processor.generate_embeddings(raw_text)[0],
+            "full_document": full_doc_embedding,
             "sections": {}
         }
         
         # Generate embeddings for each section
+        logger.info(f"Generating section embeddings for {len(sections)} sections...")
+        section_embeddings_count = 0
         for section_name, section_text in sections.items():
             if section_text.strip():
+                logger.info(f"Generating embedding for section: {section_name} (length: {len(section_text)})")
+                start_time = datetime.now()
                 section_embedding = nlp_processor.generate_embeddings(section_text)[0]
+                section_time = (datetime.now() - start_time).total_seconds()
                 embeddings["sections"][section_name] = section_embedding
+                section_embeddings_count += 1
+                logger.info(f"Section '{section_name}' embedding generated in {section_time:.2f}s")
+        
+        total_embeddings = 1 + section_embeddings_count  # full doc + sections
+        logger.info(f"Embedding generation completed. Generated {total_embeddings} embeddings total")
         
         return embeddings
     
@@ -244,27 +298,77 @@ class DocumentProcessor:
         Returns:
             Skills analysis
         """
-        skills = text_processor.extract_skills(skills_text)
+        try:
+            # Extract skills using text processing (faster approach)
+            from utils.text_processing import text_processor
+            skills = text_processor.extract_skills(skills_text)
+            
+            # Use simple rule-based categorization instead of slow zero-shot classification
+            skill_categories = self._categorize_skills_simple(skills)
+            
+            return {
+                "extracted_skills": skills,
+                "skill_categories": skill_categories,
+                "total_skills": len(skills),
+                "technical_skills_count": len([s for s in skills if any(cat in skill_categories for cat in ["programming_languages", "frameworks", "databases", "cloud_platforms", "tools"])]),
+                "has_management_experience": any("management" in skill.lower() or "lead" in skill.lower() for skill in skills)
+            }
+        except Exception as e:
+            logger.error(f"Error analyzing skills: {str(e)}")
+            return {
+                "extracted_skills": [],
+                "skill_categories": {},
+                "total_skills": 0,
+                "technical_skills_count": 0,
+                "has_management_experience": False
+            }
+    
+    def _categorize_skills_simple(self, skills: List[str]) -> Dict[str, List[str]]:
+        """
+        Simple rule-based skill categorization (faster than zero-shot classification).
         
-        # Use transformer-based skill categorization (includes fallback)
-        from utils.skill_categorizer import skill_categorizer
-        
-        skill_categories = skill_categorizer.categorize_skills(skills)
-        
-        result = {
-            "extracted_skills": skills,
-            "skill_categories": skill_categories,
-            "total_skills": len(skills),
-            "technical_skills_count": len(skills) - len(skill_categories["soft_skills"])
+        Args:
+            skills: List of skills to categorize
+            
+        Returns:
+            Dictionary with categorized skills
+        """
+        categories = {
+            "programming_languages": [],
+            "frameworks": [],
+            "databases": [],
+            "cloud_platforms": [],
+            "tools": [],
+            "soft_skills": []
         }
         
-        # Add document-type specific analysis
-        if doc_type == "cv":
-            result["has_management_experience"] = any(soft in skills_text.lower() for soft in ["leadership", "management", "team lead"])
-        else:  # job
-            result["requires_management"] = any(soft in skills_text.lower() for soft in ["leadership", "management", "team lead"])
+        # Simple keyword-based categorization
+        for skill in skills:
+            skill_lower = skill.lower()
+            
+            # Programming languages
+            if any(lang in skill_lower for lang in ["python", "java", "javascript", "typescript", "c++", "c#", "php", "ruby", "go", "rust", "swift", "kotlin", "scala"]):
+                categories["programming_languages"].append(skill)
+            # Frameworks
+            elif any(fw in skill_lower for fw in ["react", "angular", "vue", "node", "express", "django", "flask", "spring", "laravel", "rails", "asp.net", "dotnet"]):
+                categories["frameworks"].append(skill)
+            # Databases
+            elif any(db in skill_lower for db in ["mysql", "postgresql", "mongodb", "redis", "sqlite", "oracle", "sql server", "elasticsearch"]):
+                categories["databases"].append(skill)
+            # Cloud platforms
+            elif any(cloud in skill_lower for cloud in ["aws", "azure", "gcp", "google cloud", "docker", "kubernetes", "terraform", "jenkins", "gitlab", "github"]):
+                categories["cloud_platforms"].append(skill)
+            # Tools
+            elif any(tool in skill_lower for tool in ["git", "jira", "confluence", "postman", "swagger", "figma", "photoshop", "excel", "word", "powerpoint"]):
+                categories["tools"].append(skill)
+            # Soft skills
+            elif any(soft in skill_lower for soft in ["leadership", "communication", "teamwork", "problem solving", "analytical", "creative", "organized", "detail-oriented"]):
+                categories["soft_skills"].append(skill)
+            else:
+                # Default to tools if no specific category matches
+                categories["tools"].append(skill)
         
-        return result
+        return categories
     
     def _analyze_experience_section(self, experience_text: str, doc_type: str) -> Dict:
         """

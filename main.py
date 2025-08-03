@@ -36,11 +36,45 @@ logger.add(
     retention="7 days"
 )
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown."""
+    # Startup
+    try:
+        logger.info("🚀 Starting CV-Job Matching System...")
+        
+        # Pre-load models to avoid delays on first request
+        logger.info("📚 Pre-loading models...")
+        
+        # Preload the main NLP model
+        from utils.model_cache import model_cache
+        model_cache.preload_models()
+        
+        # Pre-load skill categorizer model
+        from utils.skill_categorizer import skill_categorizer
+        # Trigger model loading by calling categorize_skills with empty list
+        skill_categorizer.categorize_skills([])
+        logger.info("✅ All models pre-loaded successfully")
+        
+        logger.info("✅ System startup completed successfully")
+        
+    except Exception as e:
+        logger.error(f"❌ Error during startup: {str(e)}")
+        raise
+    
+    yield
+    
+    # Shutdown
+    logger.info("🛑 Shutting down CV-Job Matching System...")
+
 # Create FastAPI app
 app = FastAPI(
     title="Semantic CV-Job Matching System",
     description="Intelligent CV and job opportunity matching using HuggingFace transformers",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -499,14 +533,20 @@ async def process_single_cv(cv_id: str = Form(...), cv_file: UploadFile = File(.
         # Reset file position for processing
         cv_file.file.seek(0)
         
+        logger.info(f"Starting CV processing pipeline...")
+        
         # Process the CV directly using file object with custom ID
         processed_cvs = document_processor.process_documents_pipeline([cv_file], "cv", custom_id=cv_id)
+        
+        logger.info(f"Processing pipeline completed. Got {len(processed_cvs) if processed_cvs else 0} processed CVs")
         
         if not processed_cvs:
             raise HTTPException(status_code=500, detail="Failed to process CV file")
         
         processed_cv = processed_cvs[0]
         stored_cv_id = processed_cv["doc_id"]
+        
+        logger.info(f"Successfully processed CV with ID: {stored_cv_id}")
         
         # Create summary
         summary = {
@@ -516,10 +556,15 @@ async def process_single_cv(cv_id: str = Form(...), cv_file: UploadFile = File(.
             "sections_found": list(processed_cv.get("sections", {}).keys())
         }
         
-        return {
+        logger.info(f"Preparing response with summary: {summary}")
+        
+        response = {
             "message": "Successfully processed CV",
             "cv_summary": summary
         }
+        
+        logger.info(f"Returning response: {response}")
+        return response
         
     except HTTPException:
         raise
@@ -928,6 +973,44 @@ async def get_statistics():
     except Exception as e:
         logger.error(f"Error getting statistics: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting statistics: {str(e)}")
+
+@app.get("/documents/{doc_id}", tags=["Management"])
+async def get_document_content(doc_id: str):
+    """
+    Get the raw text content of a document from the vector database.
+    
+    Args:
+        doc_id: Document ID to retrieve
+        
+    Returns:
+        Document content and metadata
+    """
+    try:
+        # Get raw text content
+        raw_text = vector_db.get_raw_text(doc_id)
+        
+        if raw_text is None:
+            raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+        
+        # Get document sections
+        sections = vector_db.get_document_sections(doc_id)
+        
+        # Get document statistics
+        stats = vector_db.get_statistics()
+        
+        return {
+            "doc_id": doc_id,
+            "raw_text": raw_text,
+            "sections": sections,
+            "text_length": len(raw_text),
+            "database_stats": stats
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving document {doc_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving document: {str(e)}")
 
 @app.delete("/documents/{doc_id}", tags=["Management"])
 async def delete_document(doc_id: str):

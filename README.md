@@ -36,13 +36,14 @@ A powerful semantic matching system that uses AI to match CVs with job opportuni
 ![Opportunity Creation Flow](assets/imgs/opportunity-creation-flow.png)
 *Workflow for creating and processing job opportunities, including text extraction and semantic analysis.*
 
+### Match Action Flow
+![Match Action Flow](assets/imgs/match-action-flow.png)
+*Detailed matching workflow showing how CVs and opportunities are compared and scored for similarity.*
+
 ### Semantic Search Flow
 ![Semantic Search Flow](assets/imgs/semantic-search-flow.png)
 *End-to-end semantic search process showing how queries are processed and matched against stored documents.*
 
-### Match Action Flow
-![Match Action Flow](assets/imgs/match-action-flow.png)
-*Detailed matching workflow showing how CVs and opportunities are compared and scored for similarity.*
 
 ### CV Analysis Flow
 ![CV Analysis Flow](assets/imgs/analyze-cv-flow.png)
@@ -97,7 +98,21 @@ The API will be available at `http://localhost:8000`
 docker build -t cv-matcher .
 ```
 
-2. **Set up environment:**
+2. **Run the container:**
+```bash
+docker run -p 8000:8000 cv-matcher
+```
+
+### Model Caching Solution
+
+The Docker setup includes several optimizations to prevent model re-downloading:
+
+- **Single Worker Mode**: Configured to use only 1 worker process to prevent multiple model loads
+- **Model Pre-downloading**: Models are pre-downloaded during Docker build
+- **Model Caching**: Thread-safe singleton pattern ensures models are loaded only once
+- **Startup Preloading**: All models are preloaded during application startup
+
+### Environment Configuration
 ```bash
 cp env.example .env
 # Edit .env with your configuration

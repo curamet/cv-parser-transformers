@@ -6,6 +6,9 @@ import numpy as np
 from loguru import logger
 from config.settings import settings
 from utils.text_processing import text_processor
+from utils.model_cache import model_cache
+from datetime import datetime
+import traceback
 
 class NLPProcessor:
     """NLP processing service using HuggingFace transformers for semantic understanding."""
@@ -29,18 +32,17 @@ class NLPProcessor:
         self.embedding_cache = {}
     
     def _load_model(self):
-        """Load the specified HuggingFace model."""
+        """Load the specified HuggingFace model using the model cache."""
         try:
             logger.info(f"Loading model: {self.model_name}")
             
             if "sentence-transformers" in self.model_name:
                 # Use SentenceTransformers for better performance
-                self.model = SentenceTransformer(self.model_name)
+                self.model = model_cache.get_sentence_transformer(self.model_name)
                 logger.info(f"Loaded SentenceTransformer model: {self.model_name}")
             else:
                 # Use HuggingFace transformers
-                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-                self.model = AutoModel.from_pretrained(self.model_name)
+                self.tokenizer, self.model = model_cache.get_huggingface_model(self.model_name)
                 logger.info(f"Loaded HuggingFace model: {self.model_name}")
             
         except Exception as e:
@@ -49,7 +51,7 @@ class NLPProcessor:
             fallback_model = settings.EMBEDDING_MODELS["primary"]
             logger.info(f"Falling back to: {fallback_model}")
             self.model_name = fallback_model
-            self.model = SentenceTransformer(fallback_model)
+            self.model = model_cache.get_sentence_transformer(fallback_model)
     
     def generate_embeddings(self, texts: Union[str, List[str]], 
                           batch_size: int = None) -> np.ndarray:
@@ -71,9 +73,15 @@ class NLPProcessor:
         
         batch_size = batch_size or settings.PROCESSING_SETTINGS["batch_size"]
         
+        logger.info(f"Generating embeddings for {len(texts)} text(s) using model: {self.model_name}")
+        logger.info(f"Text lengths: {[len(text) for text in texts]}")
+        
         try:
+            start_time = datetime.now()
+            
             if isinstance(self.model, SentenceTransformer):
                 # Use SentenceTransformers
+                logger.info("Using SentenceTransformer for embedding generation...")
                 embeddings = self.model.encode(
                     texts, 
                     batch_size=batch_size,
@@ -82,12 +90,18 @@ class NLPProcessor:
                 )
             else:
                 # Use HuggingFace transformers
+                logger.info("Using HuggingFace transformers for embedding generation...")
                 embeddings = self._generate_embeddings_hf(texts, batch_size)
+            
+            generation_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Embedding generation completed in {generation_time:.2f}s. Shape: {embeddings.shape}")
             
             return embeddings
             
         except Exception as e:
             logger.error(f"Error generating embeddings: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             # Return zero embeddings as fallback
             return np.zeros((len(texts), self.embedding_dimension))
     
@@ -395,5 +409,24 @@ class NLPProcessor:
             for key in keys_to_remove:
                 del self.embedding_cache[key]
 
-# Global NLP processor instance
-nlp_processor = NLPProcessor() 
+# Singleton pattern for NLP processor
+class NLPProcessorSingleton:
+    """Singleton wrapper for NLPProcessor to ensure only one instance exists."""
+    _instance = None
+    _lock = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(NLPProcessorSingleton, cls).__new__(cls)
+            cls._instance._nlp_processor = None
+        return cls._instance
+    
+    def __init__(self):
+        if self._nlp_processor is None:
+            self._nlp_processor = NLPProcessor()
+    
+    def __getattr__(self, name):
+        return getattr(self._nlp_processor, name)
+
+# Global NLP processor instance using singleton
+nlp_processor = NLPProcessorSingleton() 

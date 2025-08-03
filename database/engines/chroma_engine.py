@@ -99,7 +99,14 @@ class ChromaEngine:
             raise Exception("ChromaDB collection not initialized")
             
         try:
+            logger.info(f"Starting ChromaDB storage for document {doc_id} (type: {doc_type})")
+            logger.info(f"Document text length: {len(raw_text)}")
+            logger.info(f"Available embeddings: full_document + {len(embeddings.get('sections', {}))} sections")
+            
+            start_time = datetime.now()
+            
             # Store full document embedding
+            logger.info(f"Storing full document embedding for {doc_id}...")
             self.collection.add(
                 embeddings=[embeddings["full_document"].tolist()],
                 documents=[raw_text],
@@ -111,9 +118,12 @@ class ChromaEngine:
                 }],
                 ids=[f"{doc_id}_full"]
             )
+            logger.info(f"Full document embedding stored for {doc_id}")
             
             # Store section embeddings
+            section_count = 0
             for section_name, section_embedding in embeddings["sections"].items():
+                logger.info(f"Storing section embedding: {section_name} for {doc_id}...")
                 self.collection.add(
                     embeddings=[section_embedding.tolist()],
                     documents=[raw_text],  # Store full text for each section
@@ -125,11 +135,17 @@ class ChromaEngine:
                     }],
                     ids=[f"{doc_id}_{section_name}"]
                 )
+                section_count += 1
+                logger.info(f"Section '{section_name}' embedding stored for {doc_id}")
             
-            logger.info(f"Stored vectors in ChromaDB for document {doc_id} with {len(embeddings['sections'])} sections")
+            storage_time = (datetime.now() - start_time).total_seconds()
+            total_embeddings = 1 + section_count  # full doc + sections
+            logger.info(f"ChromaDB storage completed for {doc_id} in {storage_time:.2f}s. Stored {total_embeddings} embeddings total")
             
         except Exception as e:
             logger.error(f"Error storing vectors in ChromaDB for document {doc_id}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     def search_similar_documents(self, query_embedding: np.ndarray, 
@@ -332,6 +348,39 @@ class ChromaEngine:
             logger.error(f"Error getting collection stats: {str(e)}")
             return {"error": f"Error getting collection stats: {str(e)}"}
     
+    def get_raw_text(self, doc_id: str) -> Optional[str]:
+        """
+        Get the raw text content of a document from ChromaDB.
+        
+        Args:
+            doc_id: Document ID
+            
+        Returns:
+            Raw text content of the document, or None if not found
+        """
+        if self.collection is None:
+            logger.error("ChromaDB collection not initialized")
+            return None
+            
+        try:
+            # Get document from ChromaDB collection
+            results = self.collection.get(
+                where={"doc_id": doc_id},
+                include=["documents"],
+                limit=1
+            )
+            
+            if results and "documents" in results and results["documents"]:
+                # Return the first document's text
+                return results["documents"][0]
+            else:
+                logger.warning(f"No document found in ChromaDB for {doc_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error retrieving document from ChromaDB for {doc_id}: {str(e)}")
+            return None
+
     def get_all_documents(self, doc_type: str = None) -> List[Dict]:
         """
         Get all documents from the collection.
@@ -358,16 +407,26 @@ class ChromaEngine:
             )
             
             documents = []
+            seen_doc_ids = set()  # Track unique base document IDs
+            
             if results and results["ids"]:
-                for i, doc_id in enumerate(results["ids"]):
+                for i, chroma_id in enumerate(results["ids"]):
                     metadata = results["metadatas"][i] if results["metadatas"] else {}
+                    
+                    # Extract base document ID (remove section suffix)
+                    base_doc_id = chroma_id.split('_')[0] if '_' in chroma_id else chroma_id
+                    
+                    # Skip if we've already seen this base document ID
+                    if base_doc_id in seen_doc_ids:
+                        continue
                     
                     # Filter by document type if specified
                     if doc_type and metadata.get("doc_type") != doc_type:
                         continue
                     
+                    seen_doc_ids.add(base_doc_id)
                     documents.append({
-                        "doc_id": doc_id,
+                        "doc_id": base_doc_id,  # Use base document ID, not ChromaDB ID
                         "doc_type": metadata.get("doc_type"),
                         "raw_text": results["documents"][i] if results["documents"] else "",
                         "metadata": metadata

@@ -26,6 +26,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Download spaCy model
 RUN python -m spacy download en_core_web_sm
 
+# Pre-download the sentence transformer model to cache it in the image
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-mpnet-base-v2')"
+
 # Copy project files
 COPY . .
 
@@ -40,6 +43,9 @@ USER app
 # Expose port
 EXPOSE 8000
 
+
+# Copy environment file for Docker
+COPY docker.env .env
 
 # Default command
 CMD ["python", "main.py"] 

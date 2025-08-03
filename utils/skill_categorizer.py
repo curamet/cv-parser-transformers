@@ -14,19 +14,24 @@ class SkillCategorizer:
         self.zero_shot_classifier = None
         self.skill_embeddings = None
         self.category_embeddings = None
-        self._load_models()
+        self._model_loaded = False
         self._initialize_categories()
     
     def _load_models(self):
-        """Load transformer models for skill categorization."""
+        """Load transformer models for skill categorization (lazy loading)."""
+        if self._model_loaded:
+            return
+            
         try:
+            logger.info("Loading zero-shot classification model (this may take a few seconds)...")
             # Load zero-shot classification pipeline
             self.zero_shot_classifier = pipeline(
                 "zero-shot-classification",
                 model="facebook/bart-large-mnli",
                 device=0 if torch.cuda.is_available() else -1
             )
-            logger.info("Loaded zero-shot classification model")
+            self._model_loaded = True
+            logger.info("✅ Zero-shot classification model loaded successfully")
             
         except Exception as e:
             logger.error(f"Error loading zero-shot classifier: {e}")
@@ -75,6 +80,10 @@ class SkillCategorizer:
             return self._get_empty_categories()
         
         try:
+            # Load model if not already loaded
+            if not self._model_loaded:
+                self._load_models()
+            
             # Use zero-shot classification if available
             if self.zero_shot_classifier:
                 return self._categorize_with_zero_shot(skills)
